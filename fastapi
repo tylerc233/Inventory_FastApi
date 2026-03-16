@@ -1,0 +1,54 @@
+from fastapi import FastAPI, Query
+from typing import Optional, List
+
+app = FastAPI()
+
+# Global list of products (acting as our database)
+Products = [
+    {'Name': 'Apple', 'Price': 4.99, 'Type': 'Fruit'},
+    {'Name': 'Orange', 'Price': 8.99, 'Type': 'Fruit'},
+    {'Name': 'Tomato', 'Price': 3.99, 'Type': 'Fruit'},
+    {'Name': 'Cabbage', 'Price': 1.99, 'Type': 'Vegetable'},
+    {'Name': 'Potato', 'Price': 2.50, 'Type': 'Vegetable'}
+]
+
+
+# /product endpoint
+@app.get("/product")
+def get_products(
+    product_price: float = Query(...),
+    product_type: Optional[str] = None,
+    product_name: Optional[str] = None
+) -> List[dict]:
+
+    results = []
+
+    for product in Products:
+        if product["Price"] != product_price:
+            continue
+
+        if product_type and product["Type"].lower() != product_type.lower():
+            continue
+
+        if product_name and product["Name"].lower() != product_name.lower():
+            continue
+
+        results.append(product)
+
+    return results
+
+
+# /product/price endpoint
+@app.get("/product/price")
+def get_all_products_price_range(
+    min_price: float,
+    max_price: float
+) -> List[dict]:
+
+    results = []
+
+    for product in Products:
+        if min_price < product["Price"] < max_price:
+            results.append(product)
+
+    return results
