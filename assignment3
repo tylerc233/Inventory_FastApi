@@ -1,0 +1,111 @@
+from flask import Flask, request, jsonify
+from flasgger import Swagger
+
+app = Flask(__name__)
+
+# -------------------------------
+# Swagger Configuration (Part 1)
+# -------------------------------
+app.config['SWAGGER'] = {
+    'title': 'Module 3 API',
+    'uiversion': 3,
+    'description': 'Assignment 3'
+}
+
+swagger = Swagger(app, template={
+    "info": {
+        "title": "Module 3 API",
+        "description": "Assignment 3",
+        "contact": {
+            "email": "your_email@example.com"
+        },
+        "version": "1.0.0"
+    }
+})
+
+# -------------------------------
+# Global Product List (Part 1)
+# -------------------------------
+Products = [
+    {'ID': 0, 'Name': 'Apple', 'Price': 4.99, 'Type': 'Fruit'},
+    {'ID': 1, 'Name': 'Orange', 'Price': 8.99, 'Type': 'Fruit'},
+    {'ID': 2, 'Name': 'Tomato', 'Price': 3.99, 'Type': 'Fruit'},
+    {'ID': 3, 'Name': 'Cabbage', 'Price': 1.99, 'Type': 'Vegetable'},
+    {'ID': 4, 'Name': 'Potato', 'Price': 2.50, 'Type': 'Vegetable'},
+    {'ID': 5, 'Name': 'Carrots', 'Price': 1.49, 'Type': 'Vegetable'}
+]
+
+# -------------------------------
+# Part 2: Request Object Schema
+# -------------------------------
+product_schema = {
+    "type": "object",
+    "properties": {
+        "ID": {"type": "integer"},
+        "Name": {"type": "string"},
+        "Price": {"type": "number"},
+        "Type": {"type": "string"}
+    },
+    "required": ["ID", "Name", "Price", "Type"]
+}
+
+# -------------------------------
+# Part 3: Endpoints
+# -------------------------------
+
+# GET /product
+@app.route('/product', methods=['GET'])
+def get_all_products():
+    """
+    Get All Products
+    ---
+    responses:
+      200:
+        description: Returns all products
+    """
+    return jsonify(Products)
+
+
+# POST /product/mod
+@app.route('/product/mod', methods=['POST'])
+def update_product():
+    """
+    Add or Modify Product
+    ---
+    parameters:
+      - in: body
+        name: product
+        required: true
+        schema:
+          type: object
+          properties:
+            ID:
+              type: integer
+            Name:
+              type: string
+            Price:
+              type: number
+            Type:
+              type: string
+    responses:
+      200:
+        description: Product added or modified
+    """
+    product = request.get_json()
+
+    # Check if product exists by ID
+    for i, existing_product in enumerate(Products):
+        if existing_product['ID'] == product['ID']:
+            Products[i] = product
+            return "Modified Product"
+
+    # If not found, add new product
+    Products.append(product)
+    return "Added New Product"
+
+
+# -------------------------------
+# Run App
+# -------------------------------
+if __name__ == '__main__':
+    app.run(debug=True)
