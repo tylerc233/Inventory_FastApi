@@ -1,0 +1,176 @@
+from fastapi import FastAPI
+from typing import List
+from models.product_models import Product, ProductRequest
+from services.product_service import (
+    get_all_products,
+    get_products_by_price,
+    search_products,
+    get_product_by_id,
+    add_or_update_product
+)
+
+app = FastAPI(
+    title="Product API - Module Assignment",
+    description="API for managing products using FastAPI + SQLite"
+)
+
+# GET /products
+@app.get("/products", response_model=List[Product])
+async def get_products():
+    return await get_all_products()
+
+# GET /products/price
+@app.get("/products/price", response_model=List[Product])
+async def get_all_products_price_range(min_price: float, max_price: float):
+    return await get_products_by_price(min_price, max_price)
+
+# GET /products/search
+@app.get("/products/search", response_model=List[Product])
+async def search_products_endpoint(product_price: float, product_type: str = None):
+    return await search_products(product_price, product_type)
+
+# GET /product
+@app.get("/product", response_model=Product)
+async def get_product(product_id: int):
+    return await get_product_by_id(product_id)
+
+# POST /products/mod
+@app.post("/products/mod", response_model=str)
+async def update_product(product: ProductRequest):
+    return await add_or_update_product(product)
+
+import aiosqlite
+from typing import List, Optional
+from models.product_models import Product, ProductRequest
+
+DB_NAME = "products.db"
+
+# Convert DB row → Product object
+def row_to_product(row) -> Product:
+    return Product(
+        id=row[0],
+        name=row[1],
+        price=row[2],
+        type=row[3]
+    )
+
+async def get_all_products() -> List[Product]:
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT * FROM products")
+        rows = await cursor.fetchall()
+        return [row_to_product(row) for row in rows]
+
+async def get_products_by_price(min_price: float, max_price: float) -> List[Product]:
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT * FROM products WHERE price >= ? AND price <= ?",
+            (min_price, max_price)
+        )
+        rows = await cursor.fetchall()
+        return [row_to_product(row) for row in rows]
+
+async def search_products(price: float, product_type: Optional[str]) -> List[Product]:
+    async with aiosqlite.connect(DB_NAME) as db:
+        if product_type:
+            cursor = await db.execute(
+                "SELECT * FROM products WHERE price = ? AND type = ?",
+                (price, product_type)
+            )
+        else:
+            cursor = await db.execute(
+                "SELECT * FROM products WHERE price = ?",
+                (price,)
+            )
+
+        rows = await cursor.fetchall()
+        return [row_to_product(row) for row in rows]
+
+async def get_product_by_id(product_id: int) -> Optional[Product]:
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT * FROM products WHERE id = ?",
+            (product_id,)
+        )
+        row = await cursor.fetchone()
+
+        if row:
+            return row_to_product(row)
+        return None
+
+async def add_or_update_product(product: ProductRequest) -> str:
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT * FROM products WHERE id = ?",
+            (product.id,)
+        )
+        existing = await cursor.fetchone()
+
+        if existing:
+            await db.execute("""
+                UPDATE products
+                SET name = ?, price = ?, type = ?
+                WHERE id = ?
+            """, (product.name, product.price, product.type, product.id))
+            await db.commit()
+            return "Modified Product"
+        else:
+            await db.execute("""
+                INSERT INTO products (id, name, price, type)
+                VALUES (?, ?, ?, ?)
+            """, (product.id, product.name, product.price, product.type))
+            await db.commit()
+            return "Added New Product"
+
+import aiosqlite
+import asyncio
+
+DB_NAME = "products.db"
+
+products_seed = [
+    (0, 'Apple', 4.99, 'Fruit'),
+    (1, 'Orange', 8.99, 'Fruit'),
+    (2, 'Tomato', 3.99, 'Fruit'),
+    (3, 'Cabbage', 1.99, 'Vegetable'),
+    (4, 'Potato', 2.50, 'Vegetable'),
+    (5, 'Carrots', 1.49, 'Vegetable')
+]
+
+async def init_db():
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY,
+                name TEXT,
+                price REAL,
+                type TEXT
+            )
+        """)
+
+        # Clear existing data (optional)
+        await db.execute("DELETE FROM products")
+
+        await db.executemany(
+            "INSERT INTO products (id, name, price, type) VALUES (?, ?, ?, ?)",
+            products_seed
+        )
+
+        await db.commit()
+
+if __name__ == "__main__":
+    asyncio.run(init_db())
+
+from pydantic import BaseModel
+
+# Request Object (for POST)
+class ProductRequest(BaseModel):
+    id: int
+    name: str
+    price: float
+    type: str
+
+# Response Object (for GET)
+class Product(BaseModel):
+    id: int
+    name: str
+    price: float
+    type: str
